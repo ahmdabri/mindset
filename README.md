@@ -29,7 +29,7 @@ Mindset adalah aplikasi Manajemen Informasi Data Aset yang dilengkapi dengan fit
 
 1.  **Kloning Repositori**
     ```bash
-    git clone [https://github.com/username/mindset.git](https://github.com/username/mindset.git)
+    git clone https://github.com/username/mindset.git
     cd mindset
     ```
 

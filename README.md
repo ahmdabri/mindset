@@ -1,6 +1,6 @@
 # Mindset 🚀
 
-Mindset adalah aplikasi Manajemen Informasi Data Aset yang dilengkapi dengan fitur transaksi peminjaman, pelacakan lokasi, dan pemindaian QR Code[cite: 14]. Proyek ini dibangun dengan antarmuka modern berbasis TypeScript, Vite, dan Supabase.
+Mindset adalah aplikasi Manajemen Informasi Data Aset yang dilengkapi dengan fitur transaksi peminjaman, pelacakan lokasi, dan pemindaian QR Code. Proyek ini dibangun dengan antarmuka modern berbasis TypeScript, Vite, dan Supabase.
 
 ## 🌟 Fitur Utama
 

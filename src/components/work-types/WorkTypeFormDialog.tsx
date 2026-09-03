@@ -32,9 +32,26 @@ const schema = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
-type FormState = Record<string, string>;
+type WorkTypeStatus = "active" | "inactive";
 
-const EMPTY: FormState = {
+type WorkTypeFormState = {
+  code: string;
+  name: string;
+  description: string;
+  status: WorkTypeStatus;
+};
+
+type WorkTypeFormErrors = Partial<Record<keyof WorkTypeFormState, string>>;
+
+type WorkTypeInitialData = {
+  id?: string;
+  code?: string | null;
+  name?: string | null;
+  description?: string | null;
+  status?: WorkTypeStatus | null;
+};
+
+const EMPTY: WorkTypeFormState = {
   code: "",
   name: "",
   description: "",
@@ -44,7 +61,7 @@ const EMPTY: FormState = {
 interface WorkTypeFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialData?: any;
+  initialData?: WorkTypeInitialData | null;
   onSuccess: () => void;
 }
 
@@ -55,8 +72,8 @@ export function WorkTypeFormDialog({
   onSuccess,
 }: WorkTypeFormDialogProps) {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<FormState>(EMPTY);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<WorkTypeFormState>(EMPTY);
+  const [errors, setErrors] = useState<WorkTypeFormErrors>({});
 
   useEffect(() => {
     if (open) {
@@ -74,10 +91,13 @@ export function WorkTypeFormDialog({
     }
   }, [open, initialData]);
 
-  const handleChange = (field: keyof FormState, value: string) => {
+  const handleChange = <K extends keyof WorkTypeFormState>(
+    field: K,
+    value: WorkTypeFormState[K],
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
@@ -103,45 +123,53 @@ export function WorkTypeFormDialog({
           .eq("id", initialData.id);
 
         if (error) {
-          if (error.code === '23505') throw new Error("Kode pekerjaan sudah digunakan");
+          if (error.code === "23505") throw new Error("Kode pekerjaan sudah digunakan");
           throw error;
         }
 
-        await logActivity(
-          "UPDATE",
-          "Jenis Pekerjaan",
-          `Memperbarui jenis pekerjaan: ${parsed.name}`
-        );
+        await logActivity({
+          action: "UPDATE",
+          module: "Jenis Pekerjaan",
+          tableName: "work_types",
+          recordId: initialData.id,
+          description: `Memperbarui jenis pekerjaan: ${parsed.name}`,
+        });
         toast.success("Jenis pekerjaan berhasil diperbarui");
       } else {
         // Create
         const { error } = await supabase.from("work_types").insert(payload);
 
         if (error) {
-          if (error.code === '23505') throw new Error("Kode pekerjaan sudah digunakan");
+          if (error.code === "23505") throw new Error("Kode pekerjaan sudah digunakan");
           throw error;
         }
 
-        await logActivity(
-          "CREATE",
-          "Jenis Pekerjaan",
-          `Menambahkan jenis pekerjaan baru: ${parsed.name}`
-        );
+        await logActivity({
+          action: "CREATE",
+          module: "Jenis Pekerjaan",
+          tableName: "work_types",
+          description: `Menambahkan jenis pekerjaan baru: ${parsed.name}`,
+        });
         toast.success("Jenis pekerjaan baru berhasil ditambahkan");
       }
 
       onSuccess();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
-        const fieldErrors: Record<string, string> = {};
+        const fieldErrors: WorkTypeFormErrors = {};
         err.errors.forEach((e) => {
-          if (e.path[0]) fieldErrors[e.path[0].toString()] = e.message;
+          const key = e.path[0];
+          if (typeof key === "string") {
+            fieldErrors[key as keyof WorkTypeFormState] = e.message;
+          }
         });
         setErrors(fieldErrors);
       } else {
         console.error("Error saving work type:", err);
-        toast.error(err.message || "Terjadi kesalahan saat menyimpan data");
+        const message =
+          err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan data";
+        toast.error(message);
       }
     } finally {
       setLoading(false);
@@ -150,37 +178,39 @@ export function WorkTypeFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-106.25">
         <DialogHeader>
           <DialogTitle>
             {initialData ? "Edit Jenis Pekerjaan" : "Tambah Pekerjaan Baru"}
           </DialogTitle>
-          <DialogDescription>
-            Tentukan kode dan nama referensi jenis pekerjaan.
-          </DialogDescription>
+          <DialogDescription>Tentukan kode dan nama referensi jenis pekerjaan.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="code">Kode Pekerjaan <span className="text-destructive">*</span></Label>
+            <Label htmlFor="code">
+              Kode Pekerjaan <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="code"
               placeholder="Misal: PENGADAAN-2023"
-              value={formData.code}
+              value={formData["code"]}
               onChange={(e) => handleChange("code", e.target.value.toUpperCase())}
             />
-            {errors.code && <p className="text-xs text-destructive">{errors.code}</p>}
+            {errors["code"] && <p className="text-xs text-destructive">{errors["code"]}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="name">Nama Pekerjaan <span className="text-destructive">*</span></Label>
+            <Label htmlFor="name">
+              Nama Pekerjaan <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="name"
               placeholder="Pengadaan Komputer..."
-              value={formData.name}
+              value={formData["name"]}
               onChange={(e) => handleChange("name", e.target.value)}
             />
-            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+            {errors["name"] && <p className="text-xs text-destructive">{errors["name"]}</p>}
           </div>
 
           <div className="space-y-2">
@@ -188,19 +218,21 @@ export function WorkTypeFormDialog({
             <Textarea
               id="description"
               placeholder="Catatan tambahan (opsional)..."
-              value={formData.description}
+              value={formData["description"]}
               onChange={(e) => handleChange("description", e.target.value)}
               rows={3}
               className="resize-none"
             />
-            {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
+            {errors["description"] && (
+              <p className="text-xs text-destructive">{errors["description"]}</p>
+            )}
           </div>
 
           <div className="space-y-2">
             <Label>Status</Label>
             <Select
-              value={formData.status}
-              onValueChange={(val) => handleChange("status", val)}
+              value={formData["status"]}
+              onValueChange={(val) => handleChange("status", val as WorkTypeStatus)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Pilih status" />
@@ -210,7 +242,7 @@ export function WorkTypeFormDialog({
                 <SelectItem value="inactive">Nonaktif</SelectItem>
               </SelectContent>
             </Select>
-            {errors.status && <p className="text-xs text-destructive">{errors.status}</p>}
+            {errors["status"] && <p className="text-xs text-destructive">{errors["status"]}</p>}
           </div>
 
           <DialogFooter className="pt-4">

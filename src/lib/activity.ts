@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 export async function logActivity(params: {
   action: string;
   module: string;
-  tableName?: string;
-  recordId?: string;
+  tableName?: string | null | undefined;
+  recordId?: string | null | undefined;
   description: string;
   oldData?: unknown;
   newData?: unknown;

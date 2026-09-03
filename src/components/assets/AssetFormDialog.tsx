@@ -42,6 +42,7 @@ const schema = z.object({
   asset_name: z.string().trim().min(3, "Nama aset minimal 3 karakter").max(150),
   category_id: z.string().min(1, "Kategori wajib dipilih"),
   location_id: z.string().min(1, "Lokasi wajib dipilih"),
+  quantity: z.coerce.number().int().min(0, "Jumlah stok tidak boleh negatif").default(1),
   serial_number: z.string().trim().max(100).optional(),
   brand: z.string().trim().max(100).optional(),
   model: z.string().trim().max(100).optional(),
@@ -63,6 +64,7 @@ const EMPTY: FormState = {
   asset_name: "",
   category_id: "",
   location_id: "",
+  quantity: "1",
   serial_number: "",
   brand: "",
   model: "",
@@ -100,11 +102,47 @@ export function AssetFormDialog({
   const [uploading, setUploading] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<{ file: File; preview: string }[]>([]);
   const { data: existingPhotos = [], isPending: photosPending } = useAssetPhotos(asset?.id ?? "");
+  const [inflowSuggestions, setInflowSuggestions] = useState<
+    Array<{ item_name: string; category_id: number | null; transaction_date: string | null }>
+  >([]);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
     setStagedFiles([]);
+
+    // Ambil daftar barang dari transaksi masuk untuk autocomplete / saran
+    supabase
+      .from("inventory_transactions")
+      .select("item_name, category_id, transaction_date")
+      .eq("type", "IN")
+      .not("item_name", "is", null)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) {
+          const map = new Map<
+            string,
+            { item_name: string; category_id: number | null; transaction_date: string | null }
+          >();
+          (
+            data as Array<{
+              item_name?: string | null;
+              category_id?: number | null;
+              transaction_date?: string | null;
+            }>
+          ).forEach((d) => {
+            if (d.item_name && !map.has(d.item_name.trim().toLowerCase())) {
+              map.set(d.item_name.trim().toLowerCase(), {
+                item_name: d.item_name.trim(),
+                category_id: d.category_id ?? null,
+                transaction_date: d.transaction_date ?? null,
+              });
+            }
+          });
+          setInflowSuggestions(Array.from(map.values()));
+        }
+      });
+
     if (asset) {
       setForm({
         asset_code: asset.asset_code,
@@ -122,6 +160,7 @@ export function AssetFormDialog({
         condition_status: asset.condition_status,
         asset_status: asset.asset_status,
         ownership_status: asset.ownership_status,
+        quantity: String(asset.quantity ?? 1),
         description: asset.description ?? "",
       });
     } else {
@@ -130,6 +169,37 @@ export function AssetFormDialog({
         .catch(() => setForm(EMPTY));
     }
   }, [open, asset]);
+
+  const handleNameChange = (val: string) => {
+    setForm((f) => {
+      const updated: FormState = { ...f, asset_name: val };
+      const match = inflowSuggestions.find(
+        (s) => s.item_name.toLowerCase() === val.trim().toLowerCase(),
+      );
+      if (match) {
+        if (match.category_id && (!f["category_id"] || f["category_id"] === "")) {
+          updated["category_id"] = String(match.category_id);
+        }
+        if (match.transaction_date && (!f["acquisition_date"] || f["acquisition_date"] === "")) {
+          updated["acquisition_date"] = match.transaction_date;
+        }
+      }
+      return updated;
+    });
+  };
+
+  const handleSelectSuggestion = (sug: {
+    item_name: string;
+    category_id: number | null;
+    transaction_date: string | null;
+  }) => {
+    setForm((f) => ({
+      ...f,
+      asset_name: sug.item_name,
+      category_id: sug.category_id ? String(sug.category_id) : (f["category_id"] ?? ""),
+      acquisition_date: sug.transaction_date || (f["acquisition_date"] ?? ""),
+    }));
+  };
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -268,6 +338,7 @@ export function AssetFormDialog({
         condition_status: v.condition_status,
         asset_status: v.asset_status,
         ownership_status: v.ownership_status,
+        quantity: Number(v.quantity ?? 1),
         description: v.description || null,
       };
 
@@ -377,12 +448,37 @@ export function AssetFormDialog({
               />
             </Field>
             <Field label="Nama Aset *">
-              <Input
-                value={form["asset_name"] ?? ""}
-                onChange={(e) => set("asset_name")(e.target.value)}
-                maxLength={150}
-                placeholder="Contoh: Laptop Operasional"
-              />
+              <div className="space-y-1.5">
+                <Input
+                  list="inflow-items-list"
+                  value={form["asset_name"] ?? ""}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  maxLength={150}
+                  placeholder="Ketik atau pilih dari barang masuk..."
+                />
+                <datalist id="inflow-items-list">
+                  {inflowSuggestions.map((item, idx) => (
+                    <option key={idx} value={item.item_name} />
+                  ))}
+                </datalist>
+                {!isEdit && inflowSuggestions.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] text-muted-foreground">
+                      Saran dari Barang Masuk:
+                    </span>
+                    {inflowSuggestions.slice(0, 5).map((sug, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectSuggestion(sug)}
+                        className="inline-flex items-center rounded-md border border-primary/20 bg-primary/5 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                      >
+                        {sug.item_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Field>
 
             <Field label="Kategori *">
@@ -509,6 +605,14 @@ export function AssetFormDialog({
                 </SelectContent>
               </Select>
             </Field>
+            <Field label="Jumlah Stok (Unit) *">
+              <Input
+                type="number"
+                min={0}
+                value={form["quantity"] ?? "1"}
+                onChange={(e) => set("quantity")(e.target.value)}
+              />
+            </Field>
           </div>
 
           {/* FOTO ASET (Ditempatkan di atas Spesifikasi) */}
@@ -551,13 +655,13 @@ export function AssetFormDialog({
               photosPending ? (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
                   {[0, 1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="aspect-[4/3] w-full rounded-lg" />
+                    <Skeleton key={i} className="aspect-4/3 w-full rounded-lg" />
                   ))}
                 </div>
               ) : existingPhotos.length === 0 ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex aspect-[4/3] max-h-28 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/60 p-3 text-center transition-colors hover:border-primary/60 hover:bg-card"
+                  className="flex aspect-4/3 max-h-28 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/60 p-3 text-center transition-colors hover:border-primary/60 hover:bg-card"
                 >
                   <ImagePlus className="size-5 text-muted-foreground mb-1" />
                   <p className="text-xs font-medium text-foreground">
@@ -570,7 +674,7 @@ export function AssetFormDialog({
                   {existingPhotos.map((photo) => (
                     <div
                       key={photo.id}
-                      className="group relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-card shadow-xs"
+                      className="group relative aspect-4/3 w-full overflow-hidden rounded-lg border border-border bg-card shadow-xs"
                     >
                       {photo.signedUrl ? (
                         <img
@@ -615,7 +719,7 @@ export function AssetFormDialog({
             stagedFiles.length === 0 ? (
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="flex aspect-[4/3] max-h-28 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/60 p-3 text-center transition-colors hover:border-primary/60 hover:bg-card"
+                className="flex aspect-4/3 max-h-28 w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/60 p-3 text-center transition-colors hover:border-primary/60 hover:bg-card"
               >
                 <ImagePlus className="size-5 text-muted-foreground mb-1" />
                 <p className="text-xs font-medium text-foreground">Pilih foto aset</p>
@@ -628,7 +732,7 @@ export function AssetFormDialog({
                 {stagedFiles.map((staged, idx) => (
                   <div
                     key={idx}
-                    className="group relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-border bg-card shadow-xs"
+                    className="group relative aspect-4/3 w-full overflow-hidden rounded-lg border border-border bg-card shadow-xs"
                   >
                     <img
                       src={staged.preview}

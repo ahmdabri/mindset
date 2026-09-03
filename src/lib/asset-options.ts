@@ -9,6 +9,7 @@ export const STATUS_OPTIONS = [
   { value: "tersedia", label: "Tersedia" },
   { value: "dipinjam", label: "Dipinjam" },
   { value: "maintenance", label: "Maintenance" },
+  { value: "habis", label: "Habis" },
   { value: "dihapus", label: "Dihapuskan" },
 ] as const;
 
@@ -50,6 +51,8 @@ export function statusBadgeClass(v: string | null): string {
       return "bg-info-soft text-info border-transparent";
     case "maintenance":
       return "bg-warning-soft text-warning border-transparent";
+    case "habis":
+      return "bg-destructive/10 text-destructive border-transparent";
     case "dihapus":
       return "bg-muted text-muted-foreground border-transparent";
     default:

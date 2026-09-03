@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, ArrowRight, ClipboardList, Loader2 } from "lucide-react";
+import { Plus, Search, ArrowRight, ClipboardList, Loader2, MoveRight } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -91,6 +91,7 @@ function MutationsView() {
   const queryClient = useQueryClient();
   const { data: currentUser } = useCurrentUser();
   const canEdit = canWriteAssets(currentUser?.role);
+  const canMutate = canEdit;
 
   const { data: mutations = [], isPending, isError } = useMutationsList();
   const { data: locations = [] } = useLocations();
@@ -245,7 +246,7 @@ function MutationsView() {
       </div>
 
       {/* Table Section */}
-      <div className="rounded-xl border border-border bg-card shadow-[var(--shadow-card)] overflow-hidden">
+      <div className="rounded-xl border border-border bg-card shadow-(--shadow-card) overflow-hidden">
         {isPending ? (
           <div className="p-6 space-y-4">
             {[0, 1, 2, 3].map((i) => (
@@ -290,22 +291,22 @@ function MutationsView() {
                   <TableCell>
                     <div className="flex items-center gap-3 text-sm">
                       <div className="min-w-0">
-                        <p className="font-medium text-foreground truncate max-w-[150px]">
+                        <p className="font-medium text-foreground truncate max-w-37.5">
                           {m.from_location?.name || "-"}
                         </p>
                         {m.from_location?.room && (
-                          <p className="text-xs text-muted-foreground truncate max-w-[150px] mt-0.5">
+                          <p className="text-xs text-muted-foreground truncate max-w-37.5 mt-0.5">
                             {m.from_location.room}
                           </p>
                         )}
                       </div>
                       <ArrowRight className="size-4 text-muted-foreground shrink-0" />
                       <div className="min-w-0">
-                        <p className="font-medium text-blue-600 truncate max-w-[150px]">
+                        <p className="font-medium text-blue-600 truncate max-w-37.5">
                           {m.to_location?.name || "-"}
                         </p>
                         {m.to_location?.room && (
-                          <p className="text-xs text-blue-500/80 truncate max-w-[150px] mt-0.5">
+                          <p className="text-xs text-blue-500/80 truncate max-w-37.5 mt-0.5">
                             {m.to_location.room}
                           </p>
                         )}
@@ -334,7 +335,7 @@ function MutationsView() {
 
       {/* Dialog Form Mutasi */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-106.25">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>Catat Mutasi Lokasi Aset</DialogTitle>

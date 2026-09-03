@@ -273,7 +273,9 @@ function AuditView() {
                 // Try to load asset info anyway from DB
                 const { data: dbAsset } = await supabase
                   .from("assets")
-                  .select("id, asset_code, asset_name, location_id, category_id, condition_status")
+                  .select(
+                    "id, asset_code, asset_name, location_id, category_id, condition_status, locations(name, room), categories(name)",
+                  )
                   .eq("id", assetId)
                   .is("deleted_at", null)
                   .maybeSingle();
@@ -282,7 +284,7 @@ function AuditView() {
                   toast.info(
                     `Aset ${dbAsset.asset_code} ditemukan di luar lingkup jadwal. Membuka checklist...`,
                   );
-                  openChecklist(dbAsset);
+                  openChecklist(dbAsset as unknown as ScopeAssetRow);
                 } else {
                   toast.error("Kode QR atau Aset tidak valid.");
                 }
@@ -442,7 +444,7 @@ function AuditView() {
             audit_status: payload.audit_status,
             notes: payload.notes || null,
             recommendation: payload.recommendation || null,
-            audited_by: auth.user?.id || null,
+            auditor_id: auth.user?.id || null,
           })
           .select()
           .single();

@@ -471,9 +471,7 @@ function ScannerContainer() {
                 </div>
 
                 <div className="space-y-1">
-                  <h2 className="text-2xl font-bold text-foreground">
-                    {scanResult.asset_name}
-                  </h2>
+                  <h2 className="text-2xl font-bold text-foreground">{scanResult.asset_name}</h2>
                   <p className="text-sm font-medium text-muted-foreground">
                     {scanResult.asset_code}
                   </p>
@@ -484,17 +482,13 @@ function ScannerContainer() {
                     <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-1">
                       Kategori
                     </p>
-                    <p className="text-sm font-medium">
-                      {scanResult.categories?.name || "-"}
-                    </p>
+                    <p className="text-sm font-medium">{scanResult.categories?.name || "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-1">
                       Lokasi
                     </p>
-                    <p className="text-sm font-medium">
-                      {scanResult.locations?.name || "-"}
-                    </p>
+                    <p className="text-sm font-medium">{scanResult.locations?.name || "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-1">
@@ -527,9 +521,7 @@ function ScannerContainer() {
                   </Button>
                   <Button
                     className="flex-1"
-                    onClick={() =>
-                      navigate({ to: "/assets/$id", params: { id: scanResult.id } })
-                    }
+                    onClick={() => navigate({ to: "/assets/$id", params: { id: scanResult.id } })}
                   >
                     Lihat Detail Aset
                   </Button>

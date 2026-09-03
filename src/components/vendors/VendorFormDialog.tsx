@@ -33,9 +33,28 @@ const schema = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
-type FormState = Record<string, string>;
+type VendorStatus = "active" | "inactive";
 
-const EMPTY: FormState = {
+type VendorFormState = {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  status: VendorStatus;
+};
+
+type VendorFormErrors = Partial<Record<keyof VendorFormState, string>>;
+
+type VendorInitialData = {
+  id?: string;
+  name?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  status?: VendorStatus | null;
+};
+
+const EMPTY: VendorFormState = {
   name: "",
   address: "",
   phone: "",
@@ -46,7 +65,7 @@ const EMPTY: FormState = {
 interface VendorFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  initialData?: any;
+  initialData?: VendorInitialData | null;
   onSuccess: () => void;
 }
 
@@ -57,8 +76,8 @@ export function VendorFormDialog({
   onSuccess,
 }: VendorFormDialogProps) {
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<FormState>(EMPTY);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formData, setFormData] = useState<VendorFormState>(EMPTY);
+  const [errors, setErrors] = useState<VendorFormErrors>({});
 
   useEffect(() => {
     if (open) {
@@ -77,10 +96,10 @@ export function VendorFormDialog({
     }
   }, [open, initialData]);
 
-  const handleChange = (field: keyof FormState, value: string) => {
+  const handleChange = <K extends keyof VendorFormState>(field: K, value: VendorFormState[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
@@ -101,18 +120,17 @@ export function VendorFormDialog({
 
       if (initialData?.id) {
         // Update
-        const { error } = await supabase
-          .from("vendors")
-          .update(payload)
-          .eq("id", initialData.id);
+        const { error } = await supabase.from("vendors").update(payload).eq("id", initialData.id);
 
         if (error) throw error;
 
-        await logActivity(
-          "UPDATE",
-          "Penyedia",
-          `Memperbarui data penyedia: ${parsed.name}`
-        );
+        await logActivity({
+          action: "UPDATE",
+          module: "Penyedia",
+          tableName: "vendors",
+          recordId: initialData.id,
+          description: `Memperbarui data penyedia: ${parsed.name}`,
+        });
         toast.success("Data penyedia berhasil diperbarui");
       } else {
         // Create
@@ -120,26 +138,32 @@ export function VendorFormDialog({
 
         if (error) throw error;
 
-        await logActivity(
-          "CREATE",
-          "Penyedia",
-          `Menambahkan penyedia baru: ${parsed.name}`
-        );
+        await logActivity({
+          action: "CREATE",
+          module: "Penyedia",
+          tableName: "vendors",
+          description: `Menambahkan penyedia baru: ${parsed.name}`,
+        });
         toast.success("Penyedia baru berhasil ditambahkan");
       }
 
       onSuccess();
       onOpenChange(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof z.ZodError) {
-        const fieldErrors: Record<string, string> = {};
+        const fieldErrors: VendorFormErrors = {};
         err.errors.forEach((e) => {
-          if (e.path[0]) fieldErrors[e.path[0].toString()] = e.message;
+          const key = e.path[0];
+          if (typeof key === "string") {
+            fieldErrors[key as keyof VendorFormState] = e.message;
+          }
         });
         setErrors(fieldErrors);
       } else {
         console.error("Error saving vendor:", err);
-        toast.error("Terjadi kesalahan saat menyimpan data");
+        const message =
+          err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan data";
+        toast.error(message);
       }
     } finally {
       setLoading(false);
@@ -148,11 +172,9 @@ export function VendorFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-125">
         <DialogHeader>
-          <DialogTitle>
-            {initialData ? "Edit Penyedia" : "Tambah Penyedia Baru"}
-          </DialogTitle>
+          <DialogTitle>{initialData ? "Edit Penyedia" : "Tambah Penyedia Baru"}</DialogTitle>
           <DialogDescription>
             Isi formulir di bawah ini untuk menyimpan data penyedia pengadaan atau vendor.
           </DialogDescription>
@@ -160,11 +182,13 @@ export function VendorFormDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nama Penyedia <span className="text-destructive">*</span></Label>
+            <Label htmlFor="name">
+              Nama Penyedia <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="name"
               placeholder="PT. Teknologi Bangsa..."
-              value={formData.name}
+              value={formData["name"]}
               onChange={(e) => handleChange("name", e.target.value)}
             />
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
@@ -176,7 +200,7 @@ export function VendorFormDialog({
               <Input
                 id="phone"
                 placeholder="08123456789"
-                value={formData.phone}
+                value={formData["phone"]}
                 onChange={(e) => handleChange("phone", e.target.value)}
               />
               {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
@@ -187,7 +211,7 @@ export function VendorFormDialog({
                 id="email"
                 type="email"
                 placeholder="kontak@vendor.com"
-                value={formData.email}
+                value={formData["email"]}
                 onChange={(e) => handleChange("email", e.target.value)}
               />
               {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
@@ -199,7 +223,7 @@ export function VendorFormDialog({
             <Textarea
               id="address"
               placeholder="Jl. Merdeka No. 123..."
-              value={formData.address}
+              value={formData["address"]}
               onChange={(e) => handleChange("address", e.target.value)}
               rows={3}
               className="resize-none"
@@ -210,8 +234,8 @@ export function VendorFormDialog({
           <div className="space-y-2">
             <Label>Status Penyedia</Label>
             <Select
-              value={formData.status}
-              onValueChange={(val) => handleChange("status", val)}
+              value={formData["status"]}
+              onValueChange={(val) => handleChange("status", val as VendorStatus)}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Pilih status" />

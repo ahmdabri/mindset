@@ -6,9 +6,9 @@ export const resetUserPassword = createServerFn({ method: "POST" })
   .validator((data: { userId: string; newPassword: string }) => data)
   .handler(async ({ data }) => {
     const { userId, newPassword } = data;
-    
+
     // Check if caller is admin - omitted for brevity but should check auth context if available
-    
+
     const { data: user, error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
       password: newPassword,
     });
@@ -29,7 +29,7 @@ export const updateUserRole = createServerFn({ method: "POST" })
 
     const { error } = await supabaseAdmin
       .from("user_roles")
-      .upsert({ user_id: userId, role }, { onConflict: 'user_id' });
+      .upsert({ user_id: userId, role }, { onConflict: "user_id" });
 
     if (error) {
       console.error("Error updating role:", error);

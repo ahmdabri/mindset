@@ -8,6 +8,44 @@ export type Database = {
   };
   public: {
     Tables: {
+      notifications: {
+        Row: {
+          created_at: string;
+          id: string;
+          is_read: boolean;
+          link: string | null;
+          message: string;
+          title: string;
+          user_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          is_read?: boolean;
+          link?: string | null;
+          message: string;
+          title: string;
+          user_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          is_read?: boolean;
+          link?: string | null;
+          message?: string;
+          title?: string;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       qr_scan_logs: {
         Row: {
           id: string;
@@ -382,6 +420,7 @@ export type Database = {
           residual_value: number;
           serial_number: string | null;
           specification: string | null;
+          quantity: number;
           updated_at: string;
           useful_life_years: number | null;
         };
@@ -402,6 +441,7 @@ export type Database = {
           location_id: number;
           model?: string | null;
           ownership_status?: string;
+          quantity?: number;
           residual_value?: number;
           serial_number?: string | null;
           specification?: string | null;
@@ -425,6 +465,7 @@ export type Database = {
           location_id?: number;
           model?: string | null;
           ownership_status?: string;
+          quantity?: number;
           residual_value?: number;
           serial_number?: string | null;
           specification?: string | null;
@@ -688,43 +729,61 @@ export type Database = {
       };
       inventory_transactions: {
         Row: {
-          id: string;
-          transaction_no: string;
-          transaction_date: string;
-          reference_no: string | null;
+          asset_id: string | null;
+          category_id: number | null;
+          created_at: string;
           destination: string | null;
+          id: string;
+          item_name: string | null;
+          notes: string | null;
+          quantity: number | null;
+          reference_no: string | null;
           status: string;
+          transaction_date: string;
+          transaction_no: string;
           type: string;
+          updated_at: string | null;
+          user_id: string | null;
           vendor_id: string | null;
           work_type_id: string | null;
-          notes: string | null;
-          created_at: string;
         };
         Insert: {
-          id?: string;
-          transaction_no: string;
-          transaction_date: string;
-          reference_no?: string | null;
+          asset_id?: string | null;
+          category_id?: number | null;
+          created_at?: string;
           destination?: string | null;
+          id?: string;
+          item_name?: string | null;
+          notes?: string | null;
+          quantity?: number | null;
+          reference_no?: string | null;
           status?: string;
+          transaction_date: string;
+          transaction_no: string;
           type: string;
+          updated_at?: string | null;
+          user_id?: string | null;
           vendor_id?: string | null;
           work_type_id?: string | null;
-          notes?: string | null;
-          created_at?: string;
         };
         Update: {
-          id?: string;
-          transaction_no?: string;
-          transaction_date?: string;
-          reference_no?: string | null;
+          asset_id?: string | null;
+          category_id?: number | null;
+          created_at?: string;
           destination?: string | null;
+          id?: string;
+          item_name?: string | null;
+          notes?: string | null;
+          quantity?: number | null;
+          reference_no?: string | null;
           status?: string;
+          transaction_date?: string;
+          transaction_no?: string;
           type?: string;
+          updated_at?: string | null;
+          user_id?: string | null;
           vendor_id?: string | null;
           work_type_id?: string | null;
-          notes?: string | null;
-          created_at?: string;
         };
         Relationships: [
           {
@@ -975,31 +1034,64 @@ export type Database = {
       };
       vendors: {
         Row: {
+          address: string | null;
+          created_at: string;
+          email: string | null;
           id: string;
           name: string;
+          phone: string | null;
+          status: string;
+          updated_at: string;
         };
         Insert: {
+          address?: string | null;
+          created_at?: string;
+          email?: string | null;
           id?: string;
           name: string;
+          phone?: string | null;
+          status?: string;
+          updated_at?: string;
         };
         Update: {
+          address?: string | null;
+          created_at?: string;
+          email?: string | null;
           id?: string;
           name?: string;
+          phone?: string | null;
+          status?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
       work_types: {
         Row: {
+          code: string;
+          created_at: string;
+          description: string | null;
           id: string;
           name: string;
+          status: string;
+          updated_at: string;
         };
         Insert: {
+          code: string;
+          created_at?: string;
+          description?: string | null;
           id?: string;
           name: string;
+          status?: string;
+          updated_at?: string;
         };
         Update: {
+          code?: string;
+          created_at?: string;
+          description?: string | null;
           id?: string;
           name?: string;
+          status?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };

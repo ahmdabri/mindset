@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { z } from "zod";
 
@@ -10,6 +10,16 @@ import kominfoBg from "@/assets/kominfo.png";
 
 export const Route = createFileRoute("/login")({
   ssr: false,
+  beforeLoad: async () => {
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
+
+    if (!error && user) {
+      throw redirect({ to: "/dashboard", replace: true });
+    }
+  },
   head: () => ({
     meta: [
       { title: "Login - MINDSET Diskominfo" },
@@ -40,7 +50,51 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const checkSession = async () => {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (!active) return;
+
+        if (!error && user) {
+          navigate({ to: "/dashboard", replace: true });
+          return;
+        }
+      } finally {
+        if (active) {
+          setAuthChecking(false);
+        }
+      }
+    };
+
+    void checkSession();
+
+    return () => {
+      active = false;
+    };
+  }, [navigate]);
+
+  if (authChecking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f6faff] text-[#002678]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="size-10 animate-spin" />
+          <p className="text-sm font-medium tracking-[0.2em] text-slate-600 uppercase">
+            Checking session
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -106,13 +160,13 @@ function LoginPage() {
   return (
     <div className="bg-[#f6faff] text-[#141d23] min-h-screen md:h-screen w-full flex flex-col md:flex-row overflow-x-hidden md:overflow-hidden select-none font-sans">
       {/* Left Branding Area */}
-      <div className="relative w-full md:w-[45%] h-[240px] sm:h-[280px] md:h-full bg-[#dbe4ed] shrink-0 overflow-hidden">
+      <div className="relative w-full md:w-[45%] h-60 sm:h-70 md:h-full bg-[#dbe4ed] shrink-0 overflow-hidden">
         <img
           src={kominfoBg}
           alt="Dinas Komunikasi dan Informatika Bondowoso Building"
           className="absolute inset-0 w-full h-full object-cover object-[center_30%]"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/25 to-transparent"></div>
+        <div className="absolute inset-0 bg-linear-to-b from-black/50 via-black/25 to-transparent"></div>
         <div className="relative z-10 p-5 sm:p-7 md:p-10 lg:p-14 flex items-start gap-3 sm:gap-4">
           <img
             src="/logo minset.png"
@@ -134,7 +188,7 @@ function LoginPage() {
 
       {/* Right Content Area */}
       <div className="w-full md:w-[55%] flex-1 bg-white flex flex-col justify-between items-center rounded-t-[32px] md:rounded-t-none md:rounded-l-[60px] lg:rounded-l-[80px] -mt-6 md:mt-0 relative z-20 px-6 py-8 sm:px-10 sm:py-10 md:px-12 md:py-12 lg:px-16 shadow-[-10px_0_30px_rgba(0,0,0,0.06)] md:shadow-[-20px_0_40px_rgba(0,0,0,0.05)] overflow-y-auto">
-        <div className="w-full max-w-[440px] my-auto">
+        <div className="w-full max-w-110 my-auto">
           {/* Header */}
           <div className="mb-6 md:mb-8 text-center md:text-left">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-[#002678] uppercase mb-2 tracking-tight">
@@ -240,7 +294,7 @@ function LoginPage() {
 
         {/* Footer Text */}
         <div className="mt-6 md:mt-8 pt-2 text-center">
-          <p className="text-[11px] sm:text-xs md:text-sm font-medium text-[#444652] max-w-[280px] sm:max-w-[320px] mx-auto leading-tight">
+          <p className="text-[11px] sm:text-xs md:text-sm font-medium text-[#444652] max-w-70 sm:max-w-[320px] mx-auto leading-tight">
             Akun dibuat oleh Admin Utama. Hubungi administrator bila mengalami kendala akses.
           </p>
         </div>

@@ -1,19 +1,16 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Search, Edit, Trash2, Loader2, FolderTree } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search, Edit, Trash2, Tag } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { logActivity } from "@/lib/activity";
-import { useCategoriesWithCount, type CategoryWithCount } from "@/hooks/useAssets";
 import { ModuleGuard } from "@/components/layout/ModuleGuard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -24,14 +21,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -41,14 +30,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useCategoriesWithCount, type CategoryWithCount } from "@/hooks/useAssets";
+import { CategoryFormDialog } from "@/components/categories/CategoryFormDialog";
 
 export const Route = createFileRoute("/_authenticated/categories")({
   head: () => ({
     meta: [
       { title: "Kategori Aset - MINDSET Diskominfo" },
-      { name: "description", content: "Master data kategori aset Diskominfo." },
+      { name: "description", content: "Master data kategori aset." },
       { property: "og:title", content: "Kategori Aset - MINDSET Diskominfo" },
-      { property: "og:description", content: "Master data kategori aset Diskominfo." },
+      { property: "og:description", content: "Master data kategori aset." },
     ],
   }),
   component: Page,
@@ -56,165 +47,85 @@ export const Route = createFileRoute("/_authenticated/categories")({
 
 function Page() {
   const queryClient = useQueryClient();
-  const { data: categories = [], isPending } = useCategoriesWithCount();
   const [search, setSearch] = useState("");
-  
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  
+  const { data: categories = [], isPending, isError, refetch } = useCategoriesWithCount();
+
+  // Dialog State
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<CategoryWithCount | null>(null);
-  const [formData, setFormData] = useState({ code: "", name: "", description: "" });
+
+  // Delete State
+  const [toDelete, setToDelete] = useState<CategoryWithCount | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const filteredData = categories.filter(
     (item) =>
       item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.code.toLowerCase().includes(search.toLowerCase())
+      item.code.toLowerCase().includes(search.toLowerCase()) ||
+      (item.description && item.description.toLowerCase().includes(search.toLowerCase())),
   );
 
-  const addMutation = useMutation({
-    mutationFn: async () => {
-      const code = formData.code.trim().toUpperCase();
-      const name = formData.name.trim();
-      const description = formData.description.trim() || null;
+  async function handleDelete() {
+    if (!toDelete) return;
 
-      if (!code || !name) throw new Error("Kode dan Nama Kategori wajib diisi");
+    if (toDelete.count > 0) {
+      toast.error(
+        `Kategori "${toDelete.name}" tidak dapat dihapus karena masih digunakan oleh ${toDelete.count} aset.`,
+      );
+      setToDelete(null);
+      return;
+    }
 
-      const { data, error } = await supabase
-        .from("categories")
-        .insert({ code, name, description, status: "active" })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      await logActivity({
-        action: "CREATE",
-        module: "categories",
-        tableName: "categories",
-        recordId: String(data.id),
-        description: `Menambahkan kategori aset baru: ${name} (${code})`,
-      });
-    },
-    onSuccess: () => {
-      toast.success("Kategori berhasil ditambahkan");
-      setIsAddOpen(false);
-      setFormData({ code: "", name: "", description: "" });
-      queryClient.invalidateQueries({ queryKey: ["categories-with-count"] });
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["categories", "active"] });
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || "Gagal menambahkan kategori");
-    },
-  });
-
-  const editMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedCategory) return;
-      const code = formData.code.trim().toUpperCase();
-      const name = formData.name.trim();
-      const description = formData.description.trim() || null;
-
-      if (!code || !name) throw new Error("Kode dan Nama Kategori wajib diisi");
-
-      const { error } = await supabase
-        .from("categories")
-        .update({ code, name, description })
-        .eq("id", selectedCategory.id);
-
-      if (error) throw error;
-
-      await logActivity({
-        action: "UPDATE",
-        module: "categories",
-        tableName: "categories",
-        recordId: String(selectedCategory.id),
-        description: `Memperbarui kategori aset: ${name} (${code})`,
-      });
-    },
-    onSuccess: () => {
-      toast.success("Kategori berhasil diperbarui");
-      setIsEditOpen(false);
-      setSelectedCategory(null);
-      queryClient.invalidateQueries({ queryKey: ["categories-with-count"] });
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["categories", "active"] });
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || "Gagal memperbarui kategori");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedCategory) return;
-
-      if (selectedCategory.count > 0) {
-        throw new Error(
-          `Kategori tidak dapat dihapus karena masih digunakan oleh ${selectedCategory.count} aset.`
-        );
-      }
-
-      const { error } = await supabase
-        .from("categories")
-        .delete()
-        .eq("id", selectedCategory.id);
-
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("categories").delete().eq("id", toDelete.id);
       if (error) throw error;
 
       await logActivity({
         action: "DELETE",
         module: "categories",
         tableName: "categories",
-        recordId: String(selectedCategory.id),
-        description: `Menghapus kategori aset: ${selectedCategory.name}`,
+        recordId: String(toDelete.id),
+        description: `Menghapus kategori aset: ${toDelete.name} (${toDelete.code})`,
       });
-    },
-    onSuccess: () => {
+
       toast.success("Kategori berhasil dihapus");
-      setIsDeleteOpen(false);
-      setSelectedCategory(null);
-      queryClient.invalidateQueries({ queryKey: ["categories-with-count"] });
+      setToDelete(null);
       queryClient.invalidateQueries({ queryKey: ["categories"] });
-      queryClient.invalidateQueries({ queryKey: ["categories", "active"] });
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || "Gagal menghapus kategori");
-    },
-  });
-
-  const openEdit = (cat: CategoryWithCount) => {
-    setSelectedCategory(cat);
-    setFormData({ code: cat.code, name: cat.name, description: cat.description || "" });
-    setIsEditOpen(true);
-  };
-
-  const openDelete = (cat: CategoryWithCount) => {
-    setSelectedCategory(cat);
-    setIsDeleteOpen(true);
-  };
+      queryClient.invalidateQueries({ queryKey: ["categories-with-count"] });
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal menghapus kategori");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <ModuleGuard module="categories">
       <div className="space-y-6">
-        <PageHeader 
-          title="Kategori Aset" 
-          description="Daftar kategori pengelompokan aset Diskominfo" 
+        <PageHeader
+          title="Kategori Aset"
+          description="Daftar kategori pengelompokan aset Diskominfo"
           actions={
-            <Button onClick={() => { setFormData({ code: "", name: "", description: "" }); setIsAddOpen(true); }}>
+            <Button
+              onClick={() => {
+                setSelectedCategory(null);
+                setIsDialogOpen(true);
+              }}
+            >
               <Plus className="mr-2 size-4" />
               Tambah Kategori
             </Button>
           }
         />
-        
+
         <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input 
-              placeholder="Cari nama atau kode kategori..." 
-              className="pl-9 h-11 bg-background" 
+            <Input
+              placeholder="Cari nama, kode, atau deskripsi kategori..."
+              className="pl-9 h-11 bg-background"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -222,190 +133,153 @@ function Page() {
         </div>
 
         <div className="rounded-xl border border-border bg-card shadow-[var(--shadow-card)] overflow-hidden">
-          {isPending ? (
-            <div className="p-6 space-y-4">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : (
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                  <TableHead className="font-semibold text-xs text-muted-foreground w-28">KODE</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground">NAMA KATEGORI</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground">DESKRIPSI</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-center w-32">JUMLAH ASET</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-center w-24">AKSI</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.length > 0 ? (
-                  filteredData.map((cat) => (
-                    <TableRow key={cat.id}>
-                      <TableCell className="font-bold text-sm text-primary">{cat.code}</TableCell>
-                      <TableCell className="font-bold text-sm text-foreground">{cat.name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{cat.description || "-"}</TableCell>
-                      <TableCell className="text-center">
-                        <Badge
-                          variant="secondary"
-                          className="bg-primary/10 text-primary hover:bg-primary/20 font-semibold border-transparent"
-                        >
-                          {cat.count} Aset
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-primary"
-                            onClick={() => openEdit(cat)}
-                          >
-                            <Edit className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => openDelete(cat)}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                      <FolderTree className="mx-auto size-8 text-muted-foreground/50 mb-2" />
-                      Tidak ada kategori yang ditemukan.
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow>
+                <TableHead className="font-semibold text-xs text-muted-foreground w-28">
+                  KODE
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground">
+                  NAMA KATEGORI
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground">
+                  DESKRIPSI
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground text-center w-32">
+                  JUMLAH ASET
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground text-center w-24">
+                  STATUS
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground text-center w-24">
+                  AKSI
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isPending ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-32" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-48" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-6 w-16 mx-auto rounded-full" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-6 w-14 mx-auto rounded-full" />
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Skeleton className="h-8 w-16 mx-auto" />
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
+                ))
+              ) : isError ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center text-destructive">
+                    Gagal memuat data kategori.
+                  </TableCell>
+                </TableRow>
+              ) : filteredData.length > 0 ? (
+                filteredData.map((cat) => (
+                  <TableRow key={cat.id}>
+                    <TableCell className="font-bold text-sm text-primary">{cat.code}</TableCell>
+                    <TableCell className="font-bold text-sm text-foreground">
+                      <div className="flex items-center gap-2">
+                        <Tag className="size-3.5 text-muted-foreground" />
+                        {cat.name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {cat.description || "-"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant="secondary"
+                        className="bg-primary/10 text-primary hover:bg-primary/20 font-semibold border-transparent"
+                      >
+                        {cat.count} Aset
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant="secondary"
+                        className={
+                          cat.status === "active"
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-transparent"
+                            : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300 border-transparent"
+                        }
+                      >
+                        {cat.status === "active" ? "Aktif" : "Nonaktif"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-primary"
+                          onClick={() => {
+                            setSelectedCategory(cat);
+                            setIsDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => setToDelete(cat)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                    Tidak ada kategori yang ditemukan.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
 
-        {/* Dialog Tambah Kategori */}
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Tambah Kategori</DialogTitle>
-              <DialogDescription>
-                Tambahkan kategori baru untuk pengelompokan aset.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="code" className="text-right">Kode</Label>
-                <Input
-                  id="code"
-                  placeholder="Contoh: INV"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">Nama Kategori</Label>
-                <Input
-                  id="name"
-                  placeholder="Contoh: Inventaris Kantor"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="description" className="text-right">Deskripsi</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Deskripsi singkat kategori..."
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>Batal</Button>
-              <Button onClick={() => addMutation.mutate()} disabled={addMutation.isPending}>
-                {addMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
-                Simpan
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <CategoryFormDialog
+          open={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          initialData={selectedCategory}
+          onSuccess={() => {
+            void refetch();
+          }}
+        />
 
-        {/* Dialog Edit Kategori */}
-        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Kategori</DialogTitle>
-              <DialogDescription>
-                Ubah data kategori aset.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-code" className="text-right">Kode</Label>
-                <Input
-                  id="edit-code"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-name" className="text-right">Nama Kategori</Label>
-                <Input
-                  id="edit-name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="col-span-3"
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-description" className="text-right">Deskripsi</Label>
-                <Textarea
-                  id="edit-description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="col-span-3"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditOpen(false)}>Batal</Button>
-              <Button onClick={() => editMutation.mutate()} disabled={editMutation.isPending}>
-                {editMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
-                Simpan Perubahan
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog Hapus Kategori */}
-        <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialog open={Boolean(toDelete)} onOpenChange={(v) => !v && setToDelete(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Hapus Kategori?</AlertDialogTitle>
+              <AlertDialogTitle>Hapus kategori ini?</AlertDialogTitle>
               <AlertDialogDescription>
-                Tindakan ini tidak dapat dibatalkan. Ini akan menghapus kategori{" "}
-                <span className="font-semibold text-foreground">{selectedCategory?.name}</span> secara permanen.
+                Kategori <span className="font-semibold text-foreground">{toDelete?.name}</span> (
+                {toDelete?.code}) akan dihapus secara permanen.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Batal</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => deleteMutation.mutate()}
-                disabled={deleteMutation.isPending}
+                onClick={handleDelete}
+                disabled={deleting}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {deleteMutation.isPending ? <Loader2 className="size-4 animate-spin mr-1.5" /> : null}
                 Hapus
               </AlertDialogAction>
             </AlertDialogFooter>

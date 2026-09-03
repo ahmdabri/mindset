@@ -154,7 +154,7 @@ function AssetsView() {
         }
       />
 
-      <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+      <div className="rounded-xl border border-border bg-card p-4 shadow-(--shadow-card)">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto]">
           <div className="relative min-w-0">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -218,18 +218,18 @@ function AssetsView() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-(--shadow-card)">
         <div className="overflow-x-auto">
-          <Table>
+          <Table className="min-w-245">
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="min-w-40">Kode / Nama</TableHead>
-                <TableHead className="min-w-32">Kategori</TableHead>
-                <TableHead className="min-w-32">Lokasi</TableHead>
-                <TableHead className="min-w-28">Kondisi</TableHead>
-                <TableHead className="min-w-28">Status</TableHead>
+                <TableHead className="min-w-52">Kode / Nama</TableHead>
+                <TableHead className="min-w-28">Kategori</TableHead>
+                <TableHead className="min-w-36">Lokasi</TableHead>
+                <TableHead className="min-w-24">Kondisi</TableHead>
+                <TableHead className="min-w-24">Status</TableHead>
                 <TableHead className="min-w-32">Perolehan</TableHead>
-                <TableHead className="w-24 text-right">Aksi</TableHead>
+                <TableHead className="min-w-24">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -265,28 +265,51 @@ function AssetsView() {
                 </TableRow>
               ) : (
                 rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      <Link
-                        to="/assets/$id"
-                        params={{ id: row.id }}
-                        className="font-medium text-foreground hover:text-primary hover:underline"
-                      >
-                        {row.asset_name}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {row.asset_code}
-                        {row.brand ? ` | ${row.brand}` : ""}
-                      </p>
+                  <TableRow key={row.id} className="align-middle">
+                    <TableCell className="py-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Link
+                            to="/assets/$id"
+                            params={{ id: row.id }}
+                            className="max-w-[18rem] truncate font-medium text-foreground hover:text-primary hover:underline"
+                          >
+                            {row.asset_name}
+                          </Link>
+                          {row.quantity !== undefined && (
+                            <Badge
+                              variant="secondary"
+                              className={`shrink-0 px-1.5 py-0 text-[10px] font-semibold ${
+                                row.quantity > 0
+                                  ? "bg-primary/10 text-primary border-primary/20"
+                                  : "bg-destructive/10 text-destructive border-destructive/20"
+                              }`}
+                            >
+                              Stok {row.quantity}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {row.asset_code}
+                          {row.brand ? ` • ${row.brand}` : ""}
+                        </p>
+                        {row.description?.startsWith("Hasil pemindahan") ? (
+                          <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                            {row.description}
+                          </p>
+                        ) : null}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-sm">{row.categories?.name ?? "-"}</TableCell>
-                    <TableCell className="text-sm">
-                      {row.locations?.name ?? "-"}
-                      {row.locations?.room ? (
-                        <p className="text-xs text-muted-foreground">{row.locations.room}</p>
-                      ) : null}
+                    <TableCell className="py-3 text-sm">{row.categories?.name ?? "-"}</TableCell>
+                    <TableCell className="py-3 text-sm">
+                      <div className="space-y-0.5">
+                        <div>{row.locations?.name ?? "-"}</div>
+                        {row.locations?.room ? (
+                          <div className="text-xs text-muted-foreground">{row.locations.room}</div>
+                        ) : null}
+                      </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-3">
                       <Badge
                         variant="outline"
                         className={conditionBadgeClass(row.condition_status)}
@@ -294,30 +317,40 @@ function AssetsView() {
                         {conditionLabel(row.condition_status)}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-3">
                       <Badge variant="outline" className={statusBadgeClass(row.asset_status)}>
                         {statusLabel(row.asset_status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm">
-                      {formatRupiah(row.acquisition_price)}
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(row.acquisition_date)}
-                      </p>
+                    <TableCell className="py-3 text-sm">
+                      <div className="space-y-0.5">
+                        <div>{formatRupiah(row.acquisition_price)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatDate(row.acquisition_date)}
+                        </div>
+                      </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="w-24 py-3 pr-4">
                       <div className="flex items-center justify-end gap-1">
-                        <Button asChild size="icon" variant="ghost" aria-label="Lihat detail">
+                        <Button
+                          asChild
+                          size="icon"
+                          variant="ghost"
+                          aria-label="Lihat detail"
+                          className="h-8 w-8"
+                        >
                           <Link to="/assets/$id" params={{ id: row.id }}>
                             <Eye className="size-4" />
                           </Link>
                         </Button>
+
                         {canEdit ? (
                           <Button
                             size="icon"
                             variant="ghost"
                             aria-label="Hapus aset"
                             onClick={() => setToDelete(row)}
+                            className="h-8 w-8"
                           >
                             <Trash2 className="size-4 text-destructive" />
                           </Button>

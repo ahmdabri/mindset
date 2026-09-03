@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Plus,
-  Search,
-  Calendar,
-  Wrench,
-  DollarSign,
-  ClipboardList,
-  Loader2,
-  Check,
-} from "lucide-react";
+import { Plus, Search, Calendar, Wrench, ClipboardList, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -626,17 +617,13 @@ function MaintenanceView() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="cost">Estimasi Biaya (Rp)</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-                    <Input
-                      id="cost"
-                      type="number"
-                      placeholder="0"
-                      className="pl-9"
-                      value={cost}
-                      onChange={(e) => setCost(e.target.value)}
-                    />
-                  </div>
+                  <Input
+                    id="cost"
+                    type="number"
+                    placeholder="0"
+                    value={cost}
+                    onChange={(e) => setCost(e.target.value)}
+                  />
                 </div>
               </div>
 

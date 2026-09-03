@@ -4,20 +4,9 @@ import { Maximize2, ImageIcon, Star } from "lucide-react";
 import { useAssetPhotos } from "@/hooks/useAssets";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export function AssetPhotoGallery({
-  assetId,
-  assetCode,
-}: {
-  assetId: string;
-  assetCode: string;
-}) {
+export function AssetPhotoGallery({ assetId, assetCode }: { assetId: string; assetCode: string }) {
   const { data: photos, isPending } = useAssetPhotos(assetId);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -26,8 +15,10 @@ export function AssetPhotoGallery({
   useEffect(() => {
     if (photos && photos.length > 0) {
       if (!selectedPhotoId || !photos.some((p) => p.id === selectedPhotoId)) {
-        const primary = photos.find((p) => p.is_primary) || photos[0];
-        setSelectedPhotoId(primary.id);
+        const primary = photos.find((p) => p.is_primary) ?? photos[0];
+        if (primary?.id) {
+          setSelectedPhotoId(primary.id);
+        }
       }
     } else {
       setSelectedPhotoId(null);

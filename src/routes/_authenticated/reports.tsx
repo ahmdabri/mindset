@@ -73,6 +73,21 @@ interface ReportAssetRow {
   categories: { name: string } | null;
 }
 
+interface ReportTransactionRow {
+  id: string;
+  transaction_no: string;
+  transaction_date: string;
+  type: "IN" | "OUT";
+  item_name: string | null;
+  quantity: number | null;
+  destination: string | null;
+  status: string;
+  vendors: { name: string } | null;
+  work_types: { name: string } | null;
+}
+
+type ReportType = "assets" | "incoming" | "outgoing";
+
 function ReportsView() {
   const { data: locations = [] } = useLocations();
   const { data: categories = [] } = useCategories();
@@ -83,6 +98,7 @@ function ReportsView() {
   const [selectedCat, setSelectedCat] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
   const [selectedCondition, setSelectedCondition] = useState("all");
+  const [reportType, setReportType] = useState<ReportType>("assets");
 
   // Query assets with filter params
   const {
@@ -116,6 +132,22 @@ function ReportsView() {
     },
   });
 
+  const { data: transactions = [], isPending: transactionsPending } = useQuery<
+    ReportTransactionRow[]
+  >({
+    queryKey: ["report-transactions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inventory_transactions")
+        .select(
+          "id, transaction_no, transaction_date, type, item_name, quantity, destination, status, vendors(name), work_types(name)",
+        )
+        .order("transaction_date", { ascending: false });
+      if (error) throw error;
+      return (data || []) as unknown as ReportTransactionRow[];
+    },
+  });
+
   // Client side search filter
   const filteredAssets = assets.filter((a) => {
     const code = a.asset_code.toLowerCase();
@@ -129,6 +161,23 @@ function ReportsView() {
   const totalValue = filteredAssets.reduce((sum, item) => sum + Number(item.acquisition_price), 0);
   const goodCount = filteredAssets.filter((a) => a.condition_status === "baik").length;
   const damagedCount = filteredAssets.filter((a) => a.condition_status !== "baik").length;
+  const filteredTransactions = transactions.filter((transaction) => {
+    const query = search.toLowerCase();
+    return (
+      transaction.transaction_no.toLowerCase().includes(query) ||
+      (transaction.item_name?.toLowerCase().includes(query) ?? false) ||
+      (transaction.destination?.toLowerCase().includes(query) ?? false) ||
+      (transaction.vendors?.name.toLowerCase().includes(query) ?? false)
+    );
+  });
+  const incomingTransactions = filteredTransactions.filter(
+    (transaction) => transaction.type === "IN",
+  );
+  const outgoingTransactions = filteredTransactions.filter(
+    (transaction) => transaction.type === "OUT",
+  );
+  const selectedTransactions =
+    reportType === "incoming" ? incomingTransactions : outgoingTransactions;
 
   const handlePrint = () => {
     const prevTitle = document.title;
@@ -138,40 +187,63 @@ function ReportsView() {
     setTimeout(() => {
       window.print();
       setTimeout(() => {
-        document.title = prevTitle || "Laporan Aset - MINDSET Diskominfo";
+        document.title = prevTitle || "Laporan - MINDSET Diskominfo";
       }, 500);
     }, 300);
   };
 
   const handleExportCSV = () => {
-    if (filteredAssets.length === 0) {
+    const exportRows = reportType === "assets" ? filteredAssets : selectedTransactions;
+    if (exportRows.length === 0) {
       toast.error("Tidak ada data untuk diekspor.");
       return;
     }
 
     try {
-      const headers = [
-        "Kode Aset",
-        "Nama Aset",
-        "Kategori",
-        "Lokasi",
-        "Tanggal Perolehan",
-        "Harga Perolehan",
-        "Kondisi",
-        "Status",
-      ];
-      const rows = filteredAssets.map((a) => [
-        a.asset_code,
-        a.asset_name,
-        a.categories?.name || "-",
-        a.locations
-          ? `${a.locations.name}${a.locations.room ? ` (${a.locations.room})` : ""}`
-          : "-",
-        a.acquisition_date,
-        a.acquisition_price,
-        conditionLabel(a.condition_status),
-        statusLabel(a.asset_status),
-      ]);
+      const headers =
+        reportType === "assets"
+          ? [
+              "Kode Aset",
+              "Nama Aset",
+              "Kategori",
+              "Lokasi",
+              "Tanggal Perolehan",
+              "Harga Perolehan",
+              "Kondisi",
+              "Status",
+            ]
+          : [
+              "No. Transaksi",
+              "Tanggal",
+              "Nama Barang",
+              "Jumlah",
+              reportType === "incoming" ? "Penyedia" : "Tujuan",
+              "Status",
+            ];
+      const rows =
+        reportType === "assets"
+          ? (exportRows as ReportAssetRow[]).map((a) => [
+              a.asset_code,
+              a.asset_name,
+              a.categories?.name || "-",
+              a.locations
+                ? `${a.locations.name}${a.locations.room ? ` (${a.locations.room})` : ""}`
+                : "-",
+              a.acquisition_date,
+              a.acquisition_price,
+              conditionLabel(a.condition_status),
+              statusLabel(a.asset_status),
+            ])
+          : (exportRows as ReportTransactionRow[]).map((transaction) => [
+              transaction.transaction_no,
+              transaction.transaction_date,
+              transaction.item_name || "-",
+              transaction.quantity ?? "-",
+              reportType === "incoming"
+                ? transaction.vendors?.name || "-"
+                : transaction.destination || "-",
+              transaction.status,
+            ]);
 
       const csvContent = [
         headers.join(","),
@@ -186,12 +258,14 @@ function ReportsView() {
       link.setAttribute("href", url);
       link.setAttribute(
         "download",
-        `Laporan_Aset_SIMAKO_${new Date().toISOString().slice(0, 10)}.csv`,
+        `Laporan_${reportType === "assets" ? "Aset" : reportType === "incoming" ? "Barang_Masuk" : "Barang_Keluar"}_MINDSET_${new Date().toISOString().slice(0, 10)}.csv`,
       );
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast.success("File Excel (CSV) berhasil diunduh.");
+      toast.success(
+        `Laporan ${reportType === "assets" ? "aset" : reportType === "incoming" ? "barang masuk" : "barang keluar"} berhasil diunduh.`,
+      );
     } catch (err) {
       console.error(err);
       toast.error("Gagal mengekspor laporan.");
@@ -286,30 +360,60 @@ function ReportsView() {
         }}
       />
 
-      {/* PANEL METRIK EMPAT KOLOM */}
+      {/* PANEL METRIK */}
       <div className="grid gap-4 md:grid-cols-4 print:hidden">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
-          <p className="text-xs text-muted-foreground font-semibold">Total Kuantitas Aset</p>
-          <p className="mt-2 text-2xl font-black text-foreground">{totalCount} Unit</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
-          <p className="text-xs text-muted-foreground font-semibold">Total Nilai Investasi</p>
-          <p className="mt-2 text-2xl font-black text-blue-600">{formatRupiah(totalValue)}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
-          <p className="text-xs text-muted-foreground font-semibold">Aset Kondisi Baik</p>
-          <p className="mt-2 text-2xl font-black text-success">{goodCount} Unit</p>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
-          <p className="text-xs text-muted-foreground font-semibold">Aset Rusak / Perbaikan</p>
-          <p className="mt-2 text-2xl font-black text-destructive">{damagedCount} Unit</p>
-        </div>
+        {reportType !== "assets" && (
+          <div className="rounded-xl border border-border bg-card p-5 shadow-(--shadow-card)">
+            <p className="text-xs font-semibold text-muted-foreground">
+              Total Transaksi {reportType === "incoming" ? "Barang Masuk" : "Barang Keluar"}
+            </p>
+            <p className="mt-2 text-2xl font-black text-foreground">
+              {selectedTransactions.length}
+            </p>
+          </div>
+        )}
+        {reportType === "assets" && (
+          <>
+            <div className="rounded-xl border border-border bg-card p-5 shadow-(--shadow-card)">
+              <p className="text-xs text-muted-foreground font-semibold">Total Kuantitas Aset</p>
+              <p className="mt-2 text-2xl font-black text-foreground">{totalCount} Unit</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-5 shadow-(--shadow-card)">
+              <p className="text-xs text-muted-foreground font-semibold">Total Nilai Investasi</p>
+              <p className="mt-2 text-2xl font-black text-blue-600">{formatRupiah(totalValue)}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-5 shadow-(--shadow-card)">
+              <p className="text-xs text-muted-foreground font-semibold">Aset Kondisi Baik</p>
+              <p className="mt-2 text-2xl font-black text-success">{goodCount} Unit</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-5 shadow-(--shadow-card)">
+              <p className="text-xs text-muted-foreground font-semibold">Aset Rusak / Perbaikan</p>
+              <p className="mt-2 text-2xl font-black text-destructive">{damagedCount} Unit</p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* FILTER PANEL */}
-      <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] space-y-4 print:hidden">
+      <div className="rounded-xl border border-border bg-card p-5 shadow-(--shadow-card) space-y-4 print:hidden">
         <h3 className="text-sm font-bold text-foreground">Saring Kriteria Laporan</h3>
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-6">
+          <div className="space-y-1.5">
+            <Label htmlFor="report-type">Jenis Laporan</Label>
+            <Select
+              value={reportType}
+              onValueChange={(value) => setReportType(value as ReportType)}
+            >
+              <SelectTrigger id="report-type" className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="assets">Data Aset</SelectItem>
+                <SelectItem value="incoming">Barang Masuk</SelectItem>
+                <SelectItem value="outgoing">Barang Keluar</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="search">Cari Nama/Kode</Label>
             <div className="relative">
@@ -404,7 +508,9 @@ function ReportsView() {
       </div>
 
       {/* TABLE PRATINJAU DATA LAYAR */}
-      <div className="rounded-xl border border-border bg-card shadow-[var(--shadow-card)] overflow-hidden print:hidden">
+      <div
+        className={`rounded-xl border border-border bg-card shadow-(--shadow-card) overflow-hidden print:hidden ${reportType !== "assets" ? "hidden" : ""}`}
+      >
         {isPending ? (
           <div className="p-6 space-y-3">
             <Skeleton className="h-8 w-full" />
@@ -472,6 +578,75 @@ function ReportsView() {
         )}
       </div>
 
+      <div className={`print:hidden ${reportType === "assets" ? "hidden" : ""}`}>
+        {[
+          {
+            title: reportType === "incoming" ? "Data Barang Masuk" : "Data Barang Keluar",
+            rows: selectedTransactions,
+            empty:
+              reportType === "incoming"
+                ? "Belum ada data barang masuk."
+                : "Belum ada data barang keluar.",
+          },
+        ].map((section) => (
+          <div
+            key={section.title}
+            className="overflow-hidden rounded-xl border border-border bg-card shadow-(--shadow-card)"
+          >
+            <div className="border-b border-border px-4 py-3">
+              <h3 className="text-sm font-bold text-foreground">{section.title}</h3>
+            </div>
+            {transactionsPending ? (
+              <div className="space-y-3 p-4">
+                <Skeleton className="h-7 w-full" />
+                <Skeleton className="h-7 w-full" />
+              </div>
+            ) : section.rows.length === 0 ? (
+              <p className="p-6 text-center text-sm text-muted-foreground">{section.empty}</p>
+            ) : (
+              <div className="max-h-80 overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>No. Transaksi</TableHead>
+                      <TableHead>Tanggal</TableHead>
+                      <TableHead>Barang</TableHead>
+                      <TableHead className="text-center">Jumlah</TableHead>
+                      <TableHead>
+                        {section.title === "Data Barang Masuk" ? "Penyedia" : "Tujuan"}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {section.rows.map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell className="font-mono text-xs font-semibold text-primary">
+                          {transaction.transaction_no}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">
+                          {formatDate(transaction.transaction_date)}
+                        </TableCell>
+                        <TableCell className="text-sm font-medium">
+                          {transaction.item_name || "-"}
+                        </TableCell>
+                        <TableCell className="text-center text-sm">
+                          {transaction.quantity ?? "-"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {transaction.type === "IN"
+                            ? transaction.vendors?.name || "-"
+                            : transaction.destination || "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
       {/* DOKUMEN CETAK RESMI SURAT DINAS (HANYA MUNCUL SAAT PRINT / CETAK PDF) */}
       <div id="print-document" className="hidden print:block print:w-full">
         {/* Kop Surat Resmi Kedinasan */}
@@ -494,7 +669,11 @@ function ReportsView() {
         {/* Judul Laporan */}
         <div className="text-center mb-3">
           <p className="text-xs font-bold uppercase underline tracking-wider text-black">
-            LAPORAN REKAPITULASI INVENTARIS DATA ASET
+            {reportType === "assets"
+              ? "LAPORAN REKAPITULASI INVENTARIS DATA ASET"
+              : reportType === "incoming"
+                ? "LAPORAN BARANG MASUK"
+                : "LAPORAN BARANG KELUAR"}
           </p>
           <p className="text-[7.5pt] text-gray-600 mt-0.5">
             Tanggal Cetak: {formatDate(new Date().toISOString())}
@@ -533,28 +712,43 @@ function ReportsView() {
               </span>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-2 mt-2 pt-1.5 border-t border-gray-300 text-center font-semibold">
-            <div className="bg-white p-1 rounded border border-gray-200">
-              <div className="text-[7pt] text-gray-500 font-normal">Total Aset</div>
-              <div className="text-black">{totalCount} Unit</div>
+          {reportType === "assets" ? (
+            <div className="grid grid-cols-4 gap-2 mt-2 pt-1.5 border-t border-gray-300 text-center font-semibold">
+              <div className="bg-white p-1 rounded border border-gray-200">
+                <div className="text-[7pt] text-gray-500 font-normal">Total Aset</div>
+                <div className="text-black">{totalCount} Unit</div>
+              </div>
+              <div className="bg-white p-1 rounded border border-gray-200">
+                <div className="text-[7pt] text-gray-500 font-normal">Kondisi Baik</div>
+                <div className="text-black">{goodCount} Unit</div>
+              </div>
+              <div className="bg-white p-1 rounded border border-gray-200">
+                <div className="text-[7pt] text-gray-500 font-normal">Rusak/Perbaikan</div>
+                <div className="text-black">{damagedCount} Unit</div>
+              </div>
+              <div className="bg-white p-1 rounded border border-gray-200">
+                <div className="text-[7pt] text-gray-500 font-normal">Total Nilai Investasi</div>
+                <div className="text-black">{formatRupiah(totalValue)}</div>
+              </div>
             </div>
-            <div className="bg-white p-1 rounded border border-gray-200">
-              <div className="text-[7pt] text-gray-500 font-normal">Kondisi Baik</div>
-              <div className="text-black">{goodCount} Unit</div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 mt-2 pt-1.5 border-t border-gray-300 text-center font-semibold">
+              <div className="bg-white p-1 rounded border border-gray-200">
+                <div className="text-[7pt] text-gray-500 font-normal">Total Transaksi</div>
+                <div className="text-black">{selectedTransactions.length} Transaksi</div>
+              </div>
+              <div className="bg-white p-1 rounded border border-gray-200">
+                <div className="text-[7pt] text-gray-500 font-normal">Total Jumlah Barang</div>
+                <div className="text-black">
+                  {selectedTransactions.reduce((sum, item) => sum + (item.quantity ?? 0), 0)} Unit
+                </div>
+              </div>
             </div>
-            <div className="bg-white p-1 rounded border border-gray-200">
-              <div className="text-[7pt] text-gray-500 font-normal">Rusak/Perbaikan</div>
-              <div className="text-black">{damagedCount} Unit</div>
-            </div>
-            <div className="bg-white p-1 rounded border border-gray-200">
-              <div className="text-[7pt] text-gray-500 font-normal">Total Nilai Investasi</div>
-              <div className="text-black">{formatRupiah(totalValue)}</div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Tabel Data Aset Resmi untuk Cetak */}
-        <table className="print-table">
+        <table className={`print-table ${reportType !== "assets" ? "hidden" : ""}`}>
           <thead>
             <tr>
               <th style={{ width: "28px" }}>No</th>
@@ -607,11 +801,52 @@ function ReportsView() {
           )}
         </table>
 
+        {reportType !== "assets" && (
+          <table className="print-table">
+            <thead>
+              <tr>
+                <th style={{ width: "28px" }}>No</th>
+                <th style={{ width: "105px" }}>No. Transaksi</th>
+                <th style={{ width: "78px" }}>Tanggal</th>
+                <th>Nama Barang</th>
+                <th style={{ width: "52px" }}>Jumlah</th>
+                <th>{reportType === "incoming" ? "Penyedia" : "Tujuan"}</th>
+                <th style={{ width: "75px" }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {selectedTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-4 text-gray-500 italic">
+                    Tidak ada transaksi yang sesuai kriteria filter.
+                  </td>
+                </tr>
+              ) : (
+                selectedTransactions.map((transaction, index) => (
+                  <tr key={transaction.id}>
+                    <td className="text-center">{index + 1}</td>
+                    <td className="font-mono font-medium">{transaction.transaction_no}</td>
+                    <td className="text-center">{formatDate(transaction.transaction_date)}</td>
+                    <td className="font-medium">{transaction.item_name || "-"}</td>
+                    <td className="text-center">{transaction.quantity ?? "-"}</td>
+                    <td>
+                      {reportType === "incoming"
+                        ? transaction.vendors?.name || "-"
+                        : transaction.destination || "-"}
+                    </td>
+                    <td className="text-center">{transaction.status}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        )}
+
         {/* Lembar Tanda Tangan Resmi */}
         <div className="no-break mt-6 flex justify-between items-start text-[8.5pt] px-4">
           <div className="text-center w-52">
             <p className="text-gray-600">Mengetahui,</p>
-            <p className="font-bold text-black uppercase mt-0.5">Pengurus Barang Pengguna</p>
+            <p className="font-bold text-black uppercase mt-0.5">Pengurus Barang</p>
             <div className="h-16"></div>
             <p className="font-bold underline text-black uppercase">
               ( ........................................ )
@@ -636,9 +871,7 @@ function ReportsView() {
 
         {/* Catatan Kaki Dokumen Resmi (Pojok Kiri Bawah) */}
         <div className="no-break mt-8 pt-2 border-t border-gray-300 flex justify-between items-center text-[7.5pt] text-gray-500">
-          <span className="font-semibold text-black">
-            MINDSET - Manajemen Informasi Data Aset
-          </span>
+          <span className="font-semibold text-black">MINDSET - Manajemen Informasi Data Aset</span>
           <span className="italic">
             Dokumen Laporan Resmi Dinas Komunikasi dan Informatika Kabupaten Bondowoso
           </span>

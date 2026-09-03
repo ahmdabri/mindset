@@ -70,15 +70,15 @@ function Page() {
   const filteredData = workTypes.filter(
     (item) =>
       item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.code.toLowerCase().includes(search.toLowerCase())
+      item.code.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
     <ModuleGuard module="work-types">
       <div className="space-y-6">
-        <PageHeader 
-          title="Jenis Pekerjaan" 
-          description="Referensi jenis-jenis pengadaan atau mutasi aset" 
+        <PageHeader
+          title="Jenis Pekerjaan"
+          description="Referensi jenis-jenis pengadaan atau mutasi aset"
           actions={
             <Button
               onClick={() => {
@@ -91,13 +91,13 @@ function Page() {
             </Button>
           }
         />
-        
+
         <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-            <Input 
-              placeholder="Cari kode atau nama pekerjaan..." 
-              className="pl-9 h-11 bg-background" 
+            <Input
+              placeholder="Cari kode atau nama pekerjaan..."
+              className="pl-9 h-11 bg-background"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -108,27 +108,45 @@ function Page() {
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="font-semibold text-xs text-muted-foreground w-24">KODE</TableHead>
-                <TableHead className="font-semibold text-xs text-muted-foreground">NAMA PEKERJAAN</TableHead>
-                <TableHead className="font-semibold text-xs text-muted-foreground">DESKRIPSI</TableHead>
-                <TableHead className="font-semibold text-xs text-muted-foreground text-center w-24">STATUS</TableHead>
-                <TableHead className="font-semibold text-xs text-muted-foreground text-center w-24">AKSI</TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground w-24">
+                  KODE
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground">
+                  NAMA PEKERJAAN
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground">
+                  DESKRIPSI
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground text-center w-24">
+                  STATUS
+                </TableHead>
+                <TableHead className="font-semibold text-xs text-muted-foreground text-center w-24">
+                  AKSI
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell>
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Skeleton className="size-4 rounded-full" />
                         <Skeleton className="h-4 w-40" />
                       </div>
                     </TableCell>
-                    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                    <TableCell><Skeleton className="h-6 w-16 mx-auto rounded-full" /></TableCell>
-                    <TableCell><Skeleton className="h-8 w-16 mx-auto" /></TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-48" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-6 w-16 mx-auto rounded-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-8 w-16 mx-auto" />
+                    </TableCell>
                   </TableRow>
                 ))
               ) : filteredData.length > 0 ? (
@@ -145,22 +163,22 @@ function Page() {
                       {wt.description || "-"}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge 
-                        variant="secondary" 
+                      <Badge
+                        variant="secondary"
                         className={
-                          wt.status === 'active' 
+                          wt.status === "active"
                             ? "bg-green-100 text-green-800 border-transparent hover:bg-green-200"
                             : "bg-gray-100 text-gray-800 border-transparent hover:bg-gray-200"
                         }
                       >
-                        {wt.status === 'active' ? 'Aktif' : 'Nonaktif'}
+                        {wt.status === "active" ? "Aktif" : "Nonaktif"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-primary"
                           onClick={() => {
                             setSelectedWorkType(wt);
@@ -169,7 +187,11 @@ function Page() {
                         >
                           <Edit className="size-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        >
                           <Trash2 className="size-4" />
                         </Button>
                       </div>

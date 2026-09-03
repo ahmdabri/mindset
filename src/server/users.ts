@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { AppRole } from "@/lib/permissions";
 
 export const resetUserPassword = createServerFn({ method: "POST" })
   .validator((data: { userId: string; newPassword: string }) => data)
@@ -21,7 +22,7 @@ export const resetUserPassword = createServerFn({ method: "POST" })
   });
 
 export const updateUserRole = createServerFn({ method: "POST" })
-  .validator((data: { userId: string; role: string }) => data)
+  .validator((data: { userId: string; role: AppRole }) => data)
   .handler(async ({ data }) => {
     const { userId, role } = data;
 

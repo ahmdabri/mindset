@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, KeyRound, ShieldAlert, Shield } from "lucide-react";
 import { toast } from "sonner";
 
+import { logActivity } from "@/lib/activity";
 import { ModuleGuard } from "@/components/layout/ModuleGuard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,39 +68,107 @@ function Page() {
   const [resetPwdUser, setResetPwdUser] = useState<UserData | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [editRoleUser, setEditRoleUser] = useState<UserData | null>(null);
   const [newRole, setNewRole] = useState<AppRole | "">("");
 
-  const { data: users = [], isLoading } = useQuery({
+  const {
+    data: users = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: ["users"],
     queryFn: async () => {
-      // Ambil dari public.users lalu join ke user_roles
-      const { data: usersData, error: usersError } = await supabase
-        .from("users")
-        .select("*, user_roles(role)");
+      const [{ data: usersData, error: usersError }, { data: rolesData, error: rolesError }] =
+        await Promise.all([
+          supabase.from("users").select("*"),
+          supabase.from("user_roles").select("user_id, role"),
+        ]);
 
-      if (usersError) throw usersError;
+      if (usersError) {
+        console.error("Supabase Error fetching users:", usersError);
+        throw usersError;
+      }
+      if (rolesError) {
+        console.error("Supabase Error fetching user roles:", rolesError);
+        throw rolesError;
+      }
+
+      let fetchedUsers = (usersData || []) as Record<string, unknown>[];
+      const rolesByUserId = new Map(
+        (rolesData || []).map((userRole) => [userRole.user_id, userRole.role as AppRole]),
+      );
+
+      // Fallback: Jika kosong (kemungkinan karena trigger belum jalan), tambahkan diri sendiri secara lokal
+      if (fetchedUsers.length === 0) {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData.user) {
+          const selfUser = {
+            id: authData.user.id,
+            email: authData.user.email ?? null,
+            full_name:
+              (authData.user.user_metadata?.["full_name"] as string) ||
+              authData.user.email ||
+              "Pengguna",
+            username:
+              (authData.user.user_metadata?.["username"] as string) ||
+              authData.user.email?.split("@")[0] ||
+              "user",
+            role: "admin_utama",
+          };
+
+          // Cobalah untuk insert ke database (Self-heal)
+          await supabase
+            .from("users")
+            .insert({
+              id: selfUser.id,
+              email: selfUser.email,
+              full_name: selfUser.full_name,
+              username: selfUser.username,
+            })
+            .select()
+            .maybeSingle();
+
+          fetchedUsers = [selfUser];
+        }
+      }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (usersData || []).map((u: any) => ({
+      return fetchedUsers.map((u: any) => ({
         id: u.id,
         email: u.email,
         full_name: u.full_name,
         username: u.username,
-        role: (u.user_roles as Array<{ role: AppRole }>)?.[0]?.role ?? null,
+        role: (u.role as AppRole | undefined) ?? rolesByUserId.get(u.id as string) ?? null,
       })) as UserData[];
     },
   });
 
+  if (isError) {
+    console.error("React Query Error:", error);
+  }
+
   const resetPasswordMutation = useMutation({
     mutationFn: async () => {
-      if (!resetPwdUser || !newPassword) throw new Error("Data tidak lengkap");
+      if (!resetPwdUser || !newPassword || !confirmPassword) throw new Error("Data tidak lengkap");
+      if (newPassword !== confirmPassword)
+        throw new Error("Password dan konfirmasi password tidak cocok.");
       return resetUserPassword({ data: { userId: resetPwdUser.id, newPassword } });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Password berhasil direset.");
+      if (resetPwdUser) {
+        await logActivity({
+          action: "UPDATE",
+          module: "users",
+          recordId: resetPwdUser.id,
+          description: `Reset password untuk pengguna ${resetPwdUser.full_name}`,
+        });
+      }
       setResetPwdUser(null);
       setNewPassword("");
+      setConfirmPassword("");
     },
     onError: (error) => {
       toast.error(`Gagal mereset password: ${error.message}`);
@@ -116,8 +185,16 @@ function Page() {
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Peran pengguna berhasil diperbarui.");
+      if (editRoleUser) {
+        await logActivity({
+          action: "UPDATE",
+          module: "users",
+          recordId: editRoleUser.id,
+          description: `Ubah peran untuk pengguna ${editRoleUser.full_name} menjadi ${newRole}`,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setEditRoleUser(null);
       setNewRole("");
@@ -139,7 +216,7 @@ function Page() {
                 <TableHead>Nama Lengkap</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Peran</TableHead>
-                <TableHead className="w-[100px]"></TableHead>
+                <TableHead className="w-25"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -147,6 +224,12 @@ function Page() {
                 <TableRow>
                   <TableCell colSpan={4} className="h-24 text-center">
                     Memuat data pengguna...
+                  </TableCell>
+                </TableRow>
+              ) : isError ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center text-red-500">
+                    Gagal memuat data pengguna: {error?.message}
                   </TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
@@ -213,6 +296,16 @@ function Page() {
                   placeholder="Masukkan password baru"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Konfirmasi Password Baru</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ketik ulang password baru"
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setResetPwdUser(null)}>
@@ -220,7 +313,7 @@ function Page() {
               </Button>
               <Button
                 onClick={() => resetPasswordMutation.mutate()}
-                disabled={!newPassword || resetPasswordMutation.isPending}
+                disabled={!newPassword || !confirmPassword || resetPasswordMutation.isPending}
               >
                 {resetPasswordMutation.isPending ? "Menyimpan..." : "Simpan Password"}
               </Button>

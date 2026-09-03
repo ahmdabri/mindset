@@ -20,7 +20,7 @@ export function ModuleGuard({ module, children }: { module: ModuleKey; children:
   if (!canAccess(user?.role ?? null, module)) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center p-6">
-        <div className="max-w-md rounded-xl border border-border bg-card p-8 text-center shadow-[var(--shadow-card)]">
+        <div className="max-w-md rounded-xl border border-border bg-card p-8 text-center shadow-(--shadow-card)">
           <ShieldAlert className="mx-auto size-10 text-destructive" />
           <h1 className="mt-4 text-lg font-semibold">Akses ditolak</h1>
           <p className="mt-2 text-sm text-muted-foreground">

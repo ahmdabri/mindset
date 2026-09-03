@@ -15,19 +15,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 import type { CurrentUser } from "@/hooks/useCurrentUser";
 import { formatDistanceToNow } from "date-fns";
 import { id } from "date-fns/locale";
 
-interface Notification {
-  id: string;
-  user_id: string | null;
-  title: string;
-  message: string;
-  link: string | null;
-  is_read: boolean;
-  created_at: string;
-}
+type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 
 export function NotificationBell({ user }: { user: CurrentUser | null }) {
   const queryClient = useQueryClient();
@@ -35,7 +28,7 @@ export function NotificationBell({ user }: { user: CurrentUser | null }) {
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Notification[]> => {
       if (!user) return [];
       const { data, error } = await supabase
         .from("notifications")
@@ -48,7 +41,8 @@ export function NotificationBell({ user }: { user: CurrentUser | null }) {
         console.error("Error fetching notifications:", error);
         return [];
       }
-      return data as Notification[];
+
+      return (data ?? []) as Notification[];
     },
     enabled: !!user,
   });
@@ -71,7 +65,7 @@ export function NotificationBell({ user }: { user: CurrentUser | null }) {
         },
         (payload) => {
           queryClient.invalidateQueries({ queryKey: ["notifications", user.id] });
-          toast("Notifikasi Baru", { description: payload.new.title });
+          toast("Notifikasi Baru", { description: payload.new["title"] });
         },
       )
       .subscribe();
@@ -135,7 +129,7 @@ export function NotificationBell({ user }: { user: CurrentUser | null }) {
           )}
         </div>
         <DropdownMenuSeparator />
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-75">
           {notifications.length === 0 ? (
             <div className="flex h-full items-center justify-center p-4 text-sm text-muted-foreground">
               Tidak ada notifikasi

@@ -336,7 +336,7 @@ function Panel({
 }) {
   return (
     <section
-      className={`rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)] ${className ?? ""}`}
+      className={`rounded-xl border border-border bg-card p-5 shadow-(--shadow-card) ${className ?? ""}`}
     >
       <h2 className="text-sm font-semibold text-foreground mb-4">{title}</h2>
       <div className="space-y-3">{children}</div>
@@ -348,7 +348,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-3 text-sm">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words font-medium">{value}</dd>
+      <dd className="min-w-0 wrap-break-word font-medium">{value}</dd>
     </div>
   );
 }

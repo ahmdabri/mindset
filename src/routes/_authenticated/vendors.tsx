@@ -20,12 +20,12 @@ import {
 import { VendorFormDialog } from "@/components/vendors/VendorFormDialog";
 
 export interface Vendor {
-  id: number;
+  id: string;
   name: string;
   address: string | null;
   phone: string | null;
   email: string | null;
-  status: string;
+  status: "active" | "inactive";
 }
 
 export const Route = createFileRoute("/_authenticated/vendors")({
@@ -45,7 +45,7 @@ function Page() {
 
   // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedVendor, setSelectedVendor] = useState<Vendor | undefined>(undefined);
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
 
   async function fetchVendors() {
     try {
@@ -83,7 +83,7 @@ function Page() {
           actions={
             <Button
               onClick={() => {
-                setSelectedVendor(undefined);
+                setSelectedVendor(null);
                 setIsDialogOpen(true);
               }}
             >
@@ -93,7 +93,7 @@ function Page() {
           }
         />
 
-        <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-(--shadow-card)">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
@@ -105,7 +105,7 @@ function Page() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-border bg-card shadow-[var(--shadow-card)] overflow-hidden">
+        <div className="rounded-xl border border-border bg-card shadow-(--shadow-card) overflow-hidden">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
@@ -233,7 +233,7 @@ function Page() {
       <VendorFormDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
-        initialData={selectedVendor}
+        initialData={selectedVendor ?? null}
         onSuccess={fetchVendors}
       />
     </ModuleGuard>

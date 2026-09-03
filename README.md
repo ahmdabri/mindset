@@ -34,7 +34,7 @@ Mindset adalah aplikasi Manajemen Informasi Data Aset yang dilengkapi dengan fit
     ```
 
 2.  **Instalasi Dependensi**
-    Gunakan Bun atau NPM untuk menginstal semua *library* yang dibutuhkan[cite: 14].
+    Gunakan Bun atau NPM untuk menginstal semua *library* yang dibutuhkan.
     ```bash
     bun install
     # atau
@@ -42,14 +42,14 @@ Mindset adalah aplikasi Manajemen Informasi Data Aset yang dilengkapi dengan fit
     ```
 
 3.  **Konfigurasi Environment**
-    Salin file *environment template* dan isi dengan kredensial Supabase Anda[cite: 14].
+    Salin file *environment template* dan isi dengan kredensial Supabase Anda.
     ```bash
     cp .env.example .env
     ```
-    Isi nilai variabel lingkungan di dalam `.env` dengan URL dan *Anon Key* dari proyek Supabase Anda[cite: 14].
+    Isi nilai variabel lingkungan di dalam `.env` dengan URL dan *Anon Key* dari proyek Supabase Anda.
 
 4.  **Menjalankan Migrasi Database (Opsional)**
-    Jika Anda menggunakan Supabase lokal, jalankan migrasi yang tersedia di folder `supabase/migrations/`[cite: 14].
+    Jika Anda menggunakan Supabase lokal, jalankan migrasi yang tersedia di folder `supabase/migrations/`.
     ```bash
     supabase start
     supabase db push
@@ -61,7 +61,7 @@ Mindset adalah aplikasi Manajemen Informasi Data Aset yang dilengkapi dengan fit
     # atau
     npm run dev
     ```
-    Aplikasi dapat diakses melalui browser pada port lokal yang disediakan oleh Vite[cite: 14].
+    Aplikasi dapat diakses melalui browser pada port lokal yang disediakan oleh Vite.
 
 ## 📁 Susunan Project
 
